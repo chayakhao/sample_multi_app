@@ -1,7 +1,8 @@
 services:
   web:
     image: ${DOCKERHUB_USERNAME}/web:latest
-
+    deploy:
+      replicas: 3
   scheduler:
     image: ${DOCKERHUB_USERNAME}/scheduler:latest
 
