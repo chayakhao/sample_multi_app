@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY . /app
-RUN pip install -r requirements.txt
-EXPOSE 8080
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
 CMD ["python3", "app.py"]
+EXPOSE 8080

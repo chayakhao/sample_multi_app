@@ -1,99 +1,50 @@
 import os
-import time
-
-from flask import Flask, request, render_template
+from flask import Flask, render_template, request, redirect, url_for
 from pymongo import MongoClient
-from datetime import datetime, UTC
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
 
-MONGO_HOST = os.getenv("MONGO_HOST", "mongodb")
-MONGO_PORT = os.getenv("MONGO_PORT", "27017")
+mongo_uri = os.environ.get("MONGO_URI", "mongodb://admin:mongo@mongo:27017/")
+db_name = os.environ.get("DB_NAME", "ipa2026_db")
 
-APP_ENV = os.getenv("APP_ENV", "local")
-APP_VERSION = os.getenv("APP_VERSION", "v1.0")
-HOSTNAME = os.getenv("HOSTNAME", "unknown")
-
-REQUEST_COUNT = Counter(
-    "http_requests_total", "Total HTTP requests", ["method", "endpoint"]
-)
-
-REQUEST_LATENCY = Histogram(
-    "http_request_duration_seconds", "HTTP request latency", ["endpoint"]
-)
-
-MONGO_ERRORS = Counter("mongodb_errors_total", "Total MongoDB operation errors")
-
-client = MongoClient(
-    f"mongodb://{MONGO_HOST}:{MONGO_PORT}/", serverSelectionTimeoutMS=2000
-)
-db = client["access_logs"]
-collection = db["visits"]
+client = MongoClient(mongo_uri)
+db = client[db_name]
+routers_collection = db["routers"]
+status_collection = db["interface_status"]
 
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def index():
-    REQUEST_COUNT.labels(method=request.method, endpoint="/").inc()
+    if request.method == "POST":
+        ip = request.form.get("ip")
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if ip and username and password:
+            routers_collection.insert_one(
+                {"ip": ip, "username": username, "password": password}
+            )
+        return redirect(url_for("index"))
 
-    with REQUEST_LATENCY.labels(endpoint="/").time():
-        ip = request.remote_addr
-        collection.insert_one({"ip": ip, "timestamp": datetime.now(UTC)})
-        count = collection.count_documents({"ip": ip})
-
-        return render_template(
-            "index.html",
-            ip=ip,
-            count=count,
-            app_env=APP_ENV,
-            app_version=APP_VERSION,
-            hostname=HOSTNAME,
-        )
+    routers = list(routers_collection.find())
+    return render_template("index.html", routers=routers)
 
 
-@app.route("/stats")
-def stats():
-    ip_counts = collection.aggregate(
-        [{"$group": {"_id": "$ip", "count": {"$sum": 1}}}, {"$sort": {"count": -1}}]
+@app.route("/delete/<router_id>", methods=["POST"])
+def delete_router(router_id):
+    from bson.objectid import ObjectId
+
+    routers_collection.delete_one({"_id": ObjectId(router_id)})
+    return redirect(url_for("index"))
+
+
+@app.route("/router/<router_ip>")
+def router_detail(router_ip):
+    # ดึงข้อมูล 3 ครั้งล่าสุดของ router ตัวนี้
+    logs = list(
+        status_collection.find({"router_ip": router_ip}).sort("timestamp", -1).limit(3)
     )
-    return render_template("stats.html", stats=ip_counts)
-
-
-@app.route("/healthz")
-def healthz():
-    return {"status": "ok"}, 200
-
-
-@app.route("/readyz")
-def readyz():
-    try:
-        client.admin.command("ping")
-        return {"status": "ready"}, 200
-    except Exception:
-        MONGO_ERRORS.inc()
-        return {"status": "not ready"}, 503
-
-
-@app.route("/metrics")
-def metrics():
-    return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
-
-
-@app.route("/work")
-def work():
-    seconds = float(request.args.get("seconds", "1"))
-
-    # maximum workload = 5 seconds
-    seconds = max(0.1, min(seconds, 5.0))
-
-    end_time = time.perf_counter() + seconds
-    result = 0
-
-    while time.perf_counter() < end_time:
-        result = (result * 3 + 1) % 1000003
-
-    return {"status": "completed", "duration": seconds, "hostname": HOSTNAME}, 200
+    return render_template("router_detail.html", router_ip=router_ip, logs=logs)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=8080, debug=True)

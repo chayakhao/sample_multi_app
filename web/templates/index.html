@@ -1,17 +1,78 @@
-<!doctype html>
-<html>
-  <head>
-    <title>IP Logger</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <h1>Hello, your IP is {{ ip }}</h1>
-    <p>You have visited {{ count }} times.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Routers</title>
+    <style>
+        body {
+            background-color: #fce4ec; /* Pastel Pink */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #4a4a4a;
+            padding: 30px;
+        }
+        h1, h2 {
+            color: #ad1457;
+        }
+        .card {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #f8bbd0;
+            border-radius: 6px;
+            margin-right: 10px;
+        }
+        button, input[type="submit"] {
+            background-color: #f48fb1;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #f06292;
+        }
+        ul {
+            list-style-type: square;
+        }
+        a {
+            color: #d81b60;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Register Router</h1>
+        <form method="POST">
+            <label>IP:</label> <input type="text" name="ip" required>
+            <label>Username:</label> <input type="text" name="username" required>
+            <label>Password:</label> <input type="password" name="password" required>
+            <input type="submit" value="Add">
+        </form>
+    </div>
 
-    <hr />
-
-    <p>Environment: {{ app_env }}</p>
-    <p>Version: {{ app_version }}</p>
-    <p>Container/Pod: {{ hostname }}</p>
-  </body>
+    <div class="card">
+        <h2>Routers List</h2>
+        <ul>
+        {% for r in routers %}
+            <li>
+                <a href="/router/{{ r.ip }}">{{ r.ip }}</a> - {{ r.username }}
+                <form action="/delete/{{ r._id }}" method="POST" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+</body>
 </html>
